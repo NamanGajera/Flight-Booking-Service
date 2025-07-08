@@ -1,12 +1,8 @@
-// const airplaneRoute = require("./airplane-route");
+const bookingController = require("./booking-route");
 const express = require("express");
 
 const router = express.Router();
 
-// router.use("/", airplaneRoute);
-
-router.get("/", (req, res) => {
-  res.json({ hellow: "Hellow" });
-});
+router.use("/booking", bookingController);
 
 module.exports = router;

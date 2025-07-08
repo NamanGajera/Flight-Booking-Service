@@ -20,4 +20,11 @@ module.exports = {
     PREMIUM_ECONOMY: "premium-economy",
     FIRST_CLASS: "first-class",
   },
+  BOOKING_STATUS: {
+    BOOKED: 'Booked',
+    INITIATED: 'Initiated',
+    PENDING: 'Pending',
+    CONFIRMED: 'Confirmed',
+    CANCELLED: 'Cancelled',
+  },
 };
