@@ -1,6 +1,7 @@
 const express = require("express");
 const { serverConfig, logger } = require("./config");
 const { Enums } = require("./utils/common");
+const scheduledCrons = require("./utils/common/cron-jobs");
 const { ErrorResponse } = require("./utils/common");
 const morgan = require("morgan");
 
@@ -35,6 +36,7 @@ app.use((err, req, res, next) => {
 
 app.listen(serverConfig.PORT, () => {
   console.log("Server started on port", serverConfig.PORT);
+  scheduledCrons.scheduledCrons();
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
 });

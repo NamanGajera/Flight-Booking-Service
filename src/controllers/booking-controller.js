@@ -3,6 +3,7 @@ const { Enums } = require("../utils/common");
 const { SuccessResponse, ErrorResponse } = require("../utils/common");
 
 const { STATUS_CODE } = Enums;
+const inMemDB = {};
 
 async function createBooking(req, res) {
   try {
@@ -21,11 +22,21 @@ async function createBooking(req, res) {
 }
 async function makePayment(req, res) {
   try {
+    const idempotencyKey = req.headers["x-idempotency-key"];
+    if (!idempotencyKey) {
+      ErrorResponse.message = "Idempotency key is required";
+      return res.status(STATUS_CODE.BAD_REQUEST).json(ErrorResponse);
+    }
+    if (inMemDB[idempotencyKey]) {
+      ErrorResponse.message = "Payment already done.";
+      return res.status(STATUS_CODE.BAD_REQUEST).json(ErrorResponse);
+    }
     const flight = await BookingService.makePayment({
       bookingId: req.body.bookingId,
       userId: req.body.userId,
       amount: req.body.amount,
     });
+    inMemDB[idempotencyKey] = idempotencyKey;
     SuccessResponse.data = flight;
     SuccessResponse.message = "Successfully flight booked";
     return res.status(STATUS_CODE.CREATED).json(SuccessResponse);

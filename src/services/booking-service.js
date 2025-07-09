@@ -123,6 +123,7 @@ async function makePayment(data) {
     const diffInMinutes = (now - createdAt) / (1000 * 60);
 
     if (diffInMinutes > 5) {
+      await cancelBooking(bookingDetails);
       throw new AppError(
         Messages.PAYMENT_TIME_OVER,
         STATUS_CODE.BAD_REQUEST
@@ -148,8 +149,37 @@ async function makePayment(data) {
       STATUS_CODE.INTERNAL_SERVER_ERROR
     );
   }
-
 }
+
+async function cancelBooking(bookingData) {
+  const transaction = await db.sequelize.transaction();
+  try {
+    if (bookingData.status === BOOKING_STATUS.CANCELLED) {
+      transaction.commit();
+      return true;
+    }
+    await updateFlightSeats({ flightId: bookingData.flightId, seats: bookingData.noOfSeats, dec: false });
+    await bookingRepository.update(bookingData.id, { status: BOOKING_STATUS.CANCELLED }, transaction);
+    await transaction.commit();
+    return true;
+  } catch (error) {
+    await transaction.rollback();
+    if (error instanceof BaseError) {
+      const message = error.errors?.[0]?.message || error.message;
+      throw new AppError(message, STATUS_CODE.BAD_REQUEST);
+    }
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      Messages.SOMETHING_WRONG,
+      STATUS_CODE.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
 async function getAllUserBooking(data) {
   try {
     const { userId } = data;
@@ -173,9 +203,24 @@ async function getAllUserBooking(data) {
   }
 }
 
+async function cancelOldBookings() {
+  try {
+    const pendingBookingData = await bookingRepository.findOldPendingBookings();
+    const response = await bookingRepository.cancelOldBookings();
+    console.log("pendingBookingData", pendingBookingData);
+    for (const bookingData of pendingBookingData) {
+      await cancelBooking(bookingData);
+    }
+    return response;
+  } catch (error) {
+    console.log(error);
+  }
+}
+
 module.exports = {
   createBooking,
   fetchFlightDetails,
   makePayment,
-  getAllUserBooking
+  getAllUserBooking,
+  cancelOldBookings,
 };
