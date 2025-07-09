@@ -26,4 +26,30 @@ function validateCreateRequest(req, res, next) {
   next();
 }
 
-module.exports = { validateCreateRequest };
+function validatePaymentRequest(req, res, next) {
+  const { bookingId, userId, amount } = req.body;
+  if (!req.body) {
+    ErrorResponse.message = Messages.REQUIRED_BODY;
+    ErrorResponse.statusCode = STATUS_CODE.BAD_REQUEST;
+    return res.status(STATUS_CODE.BAD_REQUEST).json(ErrorResponse);
+  }
+
+  const requiredFields = ["bookingId", "amount", "userId"];
+  for (const field of requiredFields) {
+    if (!req.body[field]) {
+      ErrorResponse.message = Messages.REQUIRED_FIELD(field);
+      return res.status(STATUS_CODE.BAD_REQUEST).json(ErrorResponse);
+    }
+  }
+
+  if (amount <= 0) {
+    ErrorResponse.message = Messages.PAYMENT_AMOUNT_NOT_NEGATIVE;
+    return res.status(STATUS_CODE.BAD_REQUEST).json(ErrorResponse);
+  }
+  next();
+}
+
+module.exports = {
+  validateCreateRequest,
+  validatePaymentRequest,
+};

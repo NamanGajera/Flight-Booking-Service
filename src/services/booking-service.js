@@ -6,7 +6,7 @@ const { BaseError } = require("sequelize");
 const { serverConfig } = require("../config");
 const { Enums, Messages } = require("../utils/common");
 
-const { STATUS_CODE } = Enums;
+const { STATUS_CODE, BOOKING_STATUS } = Enums;
 const bookingRepository = new BookingRepository();
 
 async function fetchFlightDetails(flightId) {
@@ -17,10 +17,10 @@ async function fetchFlightDetails(flightId) {
     return response.data.data;
   } catch (error) {
     if (error.response?.status === STATUS_CODE.NOT_FOUND) {
-      throw new AppError("Flight not found", STATUS_CODE.NOT_FOUND);
+      throw new AppError(Messages.FLIGHT_NOT_FOUND, STATUS_CODE.NOT_FOUND);
     }
     throw new AppError(
-      "Something went wrong",
+      Messages.SOMETHING_WRONG,
       STATUS_CODE.INTERNAL_SERVER_ERROR
     );
   }
@@ -39,10 +39,10 @@ async function updateFlightSeats(data) {
     return response.data.data;
   } catch (error) {
     if (error.response?.status === STATUS_CODE.NOT_FOUND) {
-      throw new AppError("Flight not found", STATUS_CODE.NOT_FOUND);
+      throw new AppError(Messages.FLIGHT_NOT_FOUND, STATUS_CODE.NOT_FOUND);
     }
     throw new AppError(
-      "Something went wrong",
+      Messages.SOMETHING_WRONG,
       STATUS_CODE.INTERNAL_SERVER_ERROR
     );
   }
@@ -86,7 +86,88 @@ async function createBooking(data) {
     }
 
     throw new AppError(
-      "Something went wrong",
+      Messages.SOMETHING_WRONG,
+      STATUS_CODE.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+async function makePayment(data) {
+  const { bookingId, amount, userId } = data;
+  const transaction = await db.sequelize.transaction();
+  try {
+    const bookingDetails = await bookingRepository.get(bookingId, transaction);
+    if (bookingDetails.totalCost !== amount) {
+      throw new AppError(
+        Messages.PAYMENT_AMOUNT_MATCH_ERROR,
+        STATUS_CODE.BAD_REQUEST
+      );
+    }
+    if (bookingDetails.userId !== userId) {
+      throw new AppError(
+        Messages.NOT_AUTHORIZED,
+        STATUS_CODE.UNAUTHORIZED
+      );
+    }
+
+    if (bookingDetails.status === BOOKING_STATUS.BOOKED) {
+      throw new AppError(
+        Messages.PAYMENT_ALREADY_DONE,
+        STATUS_CODE.NOT_FOUND
+      );
+    }
+
+    const createdAt = new Date(bookingDetails.createdAt);
+
+    const now = new Date();
+    const diffInMinutes = (now - createdAt) / (1000 * 60);
+
+    if (diffInMinutes > 5) {
+      throw new AppError(
+        Messages.PAYMENT_TIME_OVER,
+        STATUS_CODE.BAD_REQUEST
+      );
+    }
+    const response = await bookingRepository.update(bookingId, { status: BOOKING_STATUS.BOOKED }, transaction);
+    await transaction.commit();
+    return response;
+  } catch (error) {
+    console.log(error);
+    await transaction.rollback();
+    if (error instanceof BaseError) {
+      const message = error.errors?.[0]?.message || error.message;
+      throw new AppError(message, STATUS_CODE.BAD_REQUEST);
+    }
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      Messages.SOMETHING_WRONG,
+      STATUS_CODE.INTERNAL_SERVER_ERROR
+    );
+  }
+
+}
+async function getAllUserBooking(data) {
+  try {
+    const { userId } = data;
+    const bookingData = await bookingRepository.getAllUserBooking(userId);
+    return bookingData;
+  } catch (error) {
+    console.log(error);
+    if (error instanceof BaseError) {
+      const message = error.errors?.[0]?.message || error.message;
+      throw new AppError(message, STATUS_CODE.BAD_REQUEST);
+    }
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError(
+      Messages.SOMETHING_WRONG,
       STATUS_CODE.INTERNAL_SERVER_ERROR
     );
   }
@@ -95,4 +176,6 @@ async function createBooking(data) {
 module.exports = {
   createBooking,
   fetchFlightDetails,
+  makePayment,
+  getAllUserBooking
 };
